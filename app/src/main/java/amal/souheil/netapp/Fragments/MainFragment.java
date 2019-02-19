@@ -3,11 +3,16 @@ package amal.souheil.netapp.Fragments;
 
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
+
+import com.bumptech.glide.Glide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +20,7 @@ import java.util.List;
 import amal.souheil.netapp.Models.GithubUser;
 import amal.souheil.netapp.R;
 import amal.souheil.netapp.Utils.GithubStreams;
+import amal.souheil.netapp.Utils.ItemClickSupport;
 import amal.souheil.netapp.Views.GithubUserAdapter;
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -26,7 +32,7 @@ import io.reactivex.observers.DisposableObserver;
  */
 
 
-public class MainFragment extends Fragment {
+public class MainFragment extends Fragment implements GithubUserAdapter.Listener {
 
     // FOR DESIGN
     @BindView(R.id.fragment_main_recycler_view) RecyclerView recyclerView; // 1 - Declare RecyclerView
@@ -36,6 +42,9 @@ public class MainFragment extends Fragment {
     // 2 - Declare list of users (GithubUser) & Adapter
     private List<GithubUser> githubUsers;
     private GithubUserAdapter adapter;
+    // 1 - Declare the SwipeRefreshLayout
+    @BindView(R.id.fragment_main_swipe_container)
+    SwipeRefreshLayout swipeRefreshLayout;
 
     public MainFragment() { }
 
@@ -45,6 +54,10 @@ public class MainFragment extends Fragment {
         ButterKnife.bind(this, view);
         this.configureRecyclerView(); // - 4 Call during UI creation
         this.executeHttpRequestWithRetrofit(); // 5 - Execute stream after UI creation
+        // 4 - Configure the SwipeRefreshLayout
+        this.configureSwipeRefreshLayout();
+        this.configureOnClickRecyclerView();
+
         return view;
     }
 
@@ -54,21 +67,56 @@ public class MainFragment extends Fragment {
         this.disposeWhenDestroy();
     }
 
+    @Override
+    public void onClickDeleteButton(int position) {
+        GithubUser user = adapter.getUser(position);
+        Toast.makeText(getContext(), "You are trying to delete user : "+user.getLogin(), Toast.LENGTH_SHORT).show();
+
+    }
+
     // -----------------
     // CONFIGURATION
     // -----------------
+
+    // 1 - Configure item click on RecyclerView
+    private void configureOnClickRecyclerView(){
+        ItemClickSupport.addTo(recyclerView, R.layout.fragment_main_item)
+                .setOnItemClickListener(new ItemClickSupport.OnItemClickListener() {
+                    @Override
+                    public void onItemClicked(RecyclerView recyclerView, int position, View v) {
+                        Log.e("TAG", "Position : "+position);
+                        // 1 - Get user from adapter
+                        GithubUser user = adapter.getUser(position);
+                        // 2 - Show result in a Toast
+                        Toast.makeText(getContext(), "You clicked on user : "+user.getLogin(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
 
     // 3 - Configure RecyclerView, Adapter, LayoutManager & glue it together
     private void configureRecyclerView(){
         // 3.1 - Reset list
         this.githubUsers = new ArrayList<>();
         // 3.2 - Create adapter passing the list of users
-        this.adapter = new GithubUserAdapter(this.githubUsers);
+       // this.adapter= new GithubUserAdapter(this.githubUsers, Glide.with(this));
+        // 3 - Passing reference of callback
+        this.adapter = new GithubUserAdapter(this.githubUsers, Glide.with(this), this);
         // 3.3 - Attach the adapter to the recyclerview to populate items
         this.recyclerView.setAdapter(this.adapter);
         // 3.4 - Set layout manager to position the items
         this.recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
     }
+    // 2 - Configure the SwipeRefreshLayout
+    private void configureSwipeRefreshLayout(){
+        swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                executeHttpRequestWithRetrofit();
+            }
+        });
+    }
+
 
     // -------------------
     // HTTP (RxJAVA)
@@ -99,6 +147,9 @@ public class MainFragment extends Fragment {
     // -------------------
 
     private void updateUI(List<GithubUser> users){
+        // 3 - Stop refreshing and clear actual list of users
+        swipeRefreshLayout.setRefreshing(false);
+        githubUsers.clear();
         githubUsers.addAll(users);
         adapter.notifyDataSetChanged();
     }
