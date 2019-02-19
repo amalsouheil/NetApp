@@ -13,8 +13,9 @@ import android.widget.TextView;
 import java.util.List;
 
 import amal.souheil.netapp.Models.GithubUser;
+import amal.souheil.netapp.Models.GithubUserinfo;
 import amal.souheil.netapp.R;
-import amal.souheil.netapp.Utils.GithubCalls;
+import amal.souheil.netapp.Utils.GithubStreams;
 import amal.souheil.netapp.Utils.NetworkAsyncTask;
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -29,7 +30,7 @@ import io.reactivex.observers.DisposableObserver;
  */
 
 
-    public class MainFragment extends Fragment implements NetworkAsyncTask.Listeners,GithubCalls.Callbacks  {
+    public class MainFragment extends Fragment implements NetworkAsyncTask.Listeners  {
 
         // FOR DESIGN
         @BindView(R.id.fragment_main_textview)
@@ -59,9 +60,60 @@ import io.reactivex.observers.DisposableObserver;
         @OnClick(R.id.fragment_main_button)
         public void submit(View view) {
             //this.executeHttpRequest();
-            //this.executeHttpRequestWithRetrofit();
-            this.streamShowString();
+            this.executeSecondHttpRequestWithRetrofit();
+           // this.streamShowString();
         }
+
+    // -------------------
+    // HTTP (RxJAVA)
+    // -------------------
+
+    private void executeSecondHttpRequestWithRetrofit(){
+        this.updateUIWhenStartingHTTPRequest();
+        this.disposable = GithubStreams.streamFetchUserFollowingAndFetchFirstUserInfos("JakeWharton").subscribeWith(new DisposableObserver<GithubUserinfo>() {
+            @Override
+            public void onNext(GithubUserinfo users) {
+                Log.e("TAG","On Next");
+                updateUIWithUserInfo(users);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                Log.e("TAG","On Error"+Log.getStackTraceString(e));
+            }
+
+            @Override
+            public void onComplete() {
+                Log.e("TAG","On Complete !!");
+            }
+        });
+    }
+
+
+    // 1 - Execute our Stream
+    private void executeHttpRequestWithRetrofit(){
+        // 1.1 - Update UI
+        this.updateUIWhenStartingHTTPRequest();
+        // 1.2 - Execute the stream subscribing to Observable defined inside GithubStream
+        this.disposable = GithubStreams.streamFetchUserFollowing("JakeWharton").subscribeWith(new DisposableObserver<List<GithubUser>>() {
+            @Override
+            public void onNext(List<GithubUser> users) {
+                Log.e("TAG","On Next");
+                // 1.3 - Update UI with list of users
+                updateUIWithListOfUsers(users);
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                Log.e("TAG","On Error"+Log.getStackTraceString(e));
+            }
+
+            @Override
+            public void onComplete() {
+                Log.e("TAG","On Complete !!");
+            }
+        });
+    }
 
     // ------------------------------
     //  Reactive X
@@ -150,26 +202,9 @@ import io.reactivex.observers.DisposableObserver;
     public void onPostExecute(String json) {
         this.updateUIWhenStopingHTTPRequest(json);
     }
-    // 4 - Execute HTTP request and update UI
-    private void executeHttpRequestWithRetrofit(){
-        this.updateUIWhenStartingHTTPRequest();
-        GithubCalls.fetchUserFollowing(this, "JakeWharton");
-    }
 
 
-    // 2 - Override callback methods
 
-    @Override
-    public void onResponse(@Nullable List<GithubUser> users) {
-        // 2.1 - When getting response, we update UI
-        if (users != null) this.updateUIWithListOfUsers(users);
-    }
-
-    @Override
-    public void onFailure() {
-        // 2.2 - When getting error, we update UI
-        this.updateUIWhenStopingHTTPRequest("An error happened !");
-    }
 
     // ------------------
     //  UPDATE UI
@@ -192,6 +227,9 @@ import io.reactivex.observers.DisposableObserver;
     }
 
 
+    private void updateUIWithUserInfo(GithubUserinfo userInfo){
+        updateUIWhenStopingHTTPRequest("The first Following of Jake Wharthon is "+userInfo.getName()+" with "+userInfo.getFollowers()+" followers.");
+    }
 
 }
 
